@@ -8,3 +8,22 @@ input,select,textarea{background:var(--paper);color:var(--ink);border:1px solid 
 #edit-profiles{margin-top:24px;font-size:.85em}#profile-form{max-width:420px;margin:20px auto;padding:20px;background:var(--paper);border:1px solid var(--line)}#profile-form label{display:block;margin:12px 0}#profile-form input{max-width:100%}#profile-error{color:var(--red)}
 
 .import-control{display:flex;flex-direction:column;align-items:flex-start;gap:8px}.import-control .button{display:inline-block}.intro .import-hint{max-width:280px;margin:0;font-size:13px;color:var(--muted);line-height:1.4}
+
+/* Reading position: distinct against each theme and the ruled paper. */
+.reading-paragraph{background:rgba(183,125,35,.14);border-radius:8px;box-shadow:0 0 0 5px rgba(183,125,35,.14)}[data-theme=night] .reading-paragraph{background:rgba(255,224,151,.13);box-shadow:0 0 0 5px rgba(255,224,151,.13)}[data-theme=cut] .reading-paragraph{background:rgba(128,45,72,.10);box-shadow:0 0 0 5px rgba(128,45,72,.10)}.reading{background:var(--highlight);color:#241b13;border-radius:.16em;padding:.06em 0;box-shadow:.08em 0 var(--highlight),-.08em 0 var(--highlight)}
+
+/* One rhythm for the rule and every line of reading text. */
+:root{--rule:50px}
+.paper,.notebook,.borrow{background-color:var(--paper);background-image:linear-gradient(to bottom,var(--line) 0 1px,transparent 1px);background-size:100% var(--rule);background-position:0 var(--rule-offset,0px);background-repeat:repeat}
+#content p{line-height:var(--rule);margin:0 0 var(--rule)}
+#content .explanation{font-size:inherit}#content .explanation>span{font-size:.8em;line-height:0}
+.illustration-holder{display:flex;align-items:flex-start;overflow:hidden}.illustration{display:block;max-width:100%;max-height:100%}
+.borrow,.notebook{font-size:var(--zh-size);line-height:var(--rule)}
+.borrow :is(h2,p,strong),.notebook :is(h1,h2,h3,p,blockquote){font-size:inherit;line-height:var(--rule);margin:0}
+.borrow :is(button),.notebook :is(button,select){font-size:inherit;line-height:var(--rule);min-height:var(--rule);padding:0 8px}
+.borrow-actions{gap:0;align-items:start}.borrow-actions button{margin:0}
+.note{border:0;padding:0}.note button{padding:0}.notehead{align-items:baseline}.notehead h1{margin:0}.notebook .columns{row-gap:0}
+
+.paper-head{align-items:baseline;flex-wrap:wrap}.paper-head h1{font-size:var(--zh-size);line-height:var(--rule);margin:0}.en .paper-head h1{font-size:var(--en-size)}@media(max-width:760px){.paper-head h1{flex-basis:100%}}
+
+.borrow>strong,.borrow h2,.borrow p{padding:0;border:0}.borrow-actions{margin:0}
