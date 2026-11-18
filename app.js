@@ -29,7 +29,41 @@ function renderNotes(){let f=$('#filter'),old=f.value;f.replaceChildren(new Opti
 $('#filter').onchange=renderNotes;$('#profile-button').onclick=chooseProfiles;all('#nav button').forEach(b=>b.onclick=async()=>{stop();await refresh();show(b.dataset.view)});
 $('#settings-button').onclick=()=>{$('#profile-name').value=profile.name;$('#theme').value=profile.theme||'kraft';$('#settings-dialog').showModal()};$('#close-settings').onclick=()=>$('#settings-dialog').close();$('#save-settings').onclick=async()=>{profile.name=$('#profile-name').value.trim()||profile.name;profile.theme=$('#theme').value;await put('profiles',profile);document.documentElement.dataset.theme=profile.theme;$('#profile-button').textContent=profile.name+' · 轉人';$('#settings-dialog').close()};
 let importStatusTimer;
-$('#import').onchange=async e=>{try{for(const file of e.target.files){$('#status').textContent='匯入中：'+file.name;let zip=await JSZip.loadAsync(file),b=JSON.parse(await zip.file('book.json').async('string'));if(!b.id||!['zh','en'].includes(b.lang)||!Array.isArray(b.pages)||!b.pages.length)throw Error('書本格式無效');let files={};for(const [name,entry] of Object.entries(zip.files))if(!entry.dir&&/^(audio|images)\//.test(name))files[name]=await entry.async('blob');await put('books',{id:b.id,book:b,files})}if(navigator.storage?.persist)await navigator.storage.persist();$('#status').textContent='匯入完成';clearTimeout(importStatusTimer);importStatusTimer=setTimeout(()=>{if($('#status').textContent==='匯入完成')$('#status').textContent=''},3000);await refresh()}catch(err){$('#status').textContent='匯入失敗：'+err.message}e.target.value=''};
+const importPause=()=>new Promise(resolve=>setTimeout(resolve,0));
+function saveImportedBook(value){return new Promise((resolve,reject)=>{let tx=db.transaction('books','readwrite');tx.objectStore('books').put(value);tx.oncomplete=()=>resolve();tx.onabort=tx.onerror=()=>reject(tx.error||Error('儲存書本失敗'))})}
+$('#import').onchange=async e=>{
+  const input=e.target,files=Array.from(input.files),status=$('#status');
+  if(!files.length)return;
+  clearTimeout(importStatusTimer); input.disabled=true;
+  status.textContent=`已選擇 ${files.length} 本，準備匯入…`;
+  let current='';
+  try{
+    await importPause();
+    for(let i=0;i<files.length;i++){
+      const file=files[i]; current=file.name;
+      status.textContent=`匯入中（第 ${i+1}／${files.length} 本）：${file.name}`;
+      await importPause();
+      let data;
+      try{data=await file.arrayBuffer()}catch(err){if(err.name==='QuotaExceededError')throw err;throw Error('讀取檔案失敗，請檢查檔案是否已下載或可存取')}
+      let zip;
+      try{zip=await JSZip.loadAsync(data)}catch(err){if(err.name==='QuotaExceededError')throw err;throw Error('檔案不是有效的 ZIP，或 ZIP 已損壞')}
+      const manifest=zip.file('book.json');
+      if(!manifest)throw Error('ZIP 內沒有 book.json，請選擇有效的書本檔案');
+      let b;
+      try{b=JSON.parse(await manifest.async('string'))}catch(err){if(err.name==='QuotaExceededError')throw err;throw Error('book.json 無法讀取或格式不正確')}
+      if(!b||!b.id||!['zh','en'].includes(b.lang)||!Array.isArray(b.pages)||!b.pages.length)throw Error('書本格式無效');
+      let assets={};for(const [name,entry] of Object.entries(zip.files))if(!entry.dir&&/^(audio|images)\//.test(name))assets[name]=await entry.async('blob');
+      await saveImportedBook({id:b.id,book:b,files:assets});
+    }
+    current='';if(navigator.storage?.persist)await navigator.storage.persist();
+    await refresh();status.textContent='匯入完成';
+    importStatusTimer=setTimeout(()=>{if(status.textContent==='匯入完成')status.textContent=''},3000);
+  }catch(err){
+    let reason=err?.name==='QuotaExceededError'?'裝置空間不足，請先刪除一些書':(/[^\x00-\x7f]/.test(err?.message||'')?err.message:'讀取或儲存書本時發生錯誤，請檢查檔案及裝置空間');
+    status.textContent='匯入失敗'+(current?'（'+current+'）':'')+'：'+reason;
+    try{await refresh()}catch(_){}
+  }finally{input.value='';input.disabled=false}
+};
 async function openBook(item,target){stop();book=item;let s=stateFor(item.id);entries=[];pageOf=[];item.book.pages.forEach((p,n)=>p.blocks.forEach(b=>{if(b.type==='para'){entries.push(b);pageOf.push(n)}}));pageIndex=Number.isInteger(target)?target:(s.pageIndex||0);pageIndex=Math.max(0,Math.min(item.book.pages.length-1,pageIndex));index=Number.isInteger(target)?Math.max(0,pageOf.indexOf(pageIndex)):Math.max(0,Math.min(entries.length-1,s.index||0));$('#title').textContent=item.book.title;$('#reader').className='reader '+item.book.lang;$('#stop-en').checked=localStorage.stopEn==='true';$('#chapter').hidden=!(item.book.chapters||[]).length;show('reader');render();await remember()}
 function spans(container,value,glossary){let chars=Array.from(value||''),terms=Object.keys(glossary).filter(Boolean).sort((a,b)=>b.length-a.length);for(let i=0;i<chars.length;){let rest=chars.slice(i).join(''),term=terms.find(t=>rest.startsWith(t)),match=book.book.lang==='en'?rest.match(/^[A-Za-z]+(?:['’-][A-Za-z]+)*/):null,word=term||(match&&match[0]);let span=document.createElement('span'),length=word?Array.from(word).length:1;span.dataset.start=i;span.dataset.end=i+length;span.textContent=chars.slice(i,i+length).join('');if(word){span.className=Object.keys(glossary).some(t=>t.toLowerCase()===word.toLowerCase())?'term':'lookup';span.onclick=()=>showCard(word)}container.append(span);i+=length}}
 function showCard(word){activeWord=word;let v=(book.book.glossary||{})[word]||(book.book.glossary||{})[word.toLowerCase()],c=$('#card-content');c.replaceChildren();for(const value of [word,v?.reading||'',v?.meaning||'暫時冇解釋',v?.example||''])if(value)c.append(text('p',value));$('#card').showModal()}
